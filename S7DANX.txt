@@ -1,0 +1,881 @@
+-- [[ S7DANX HUB - FLUXO PVP (VERSÃO FINAL ROXA) ]] --
+
+-- =============================================
+-- SISTEMA DE LOGIN + SALVAMENTO
+-- =============================================
+
+local ArquivoLogin = "S7DANX_Login.txt"
+local usuarioSalvo = ""
+local senhaSalva = ""
+
+local function CarregarCredenciais()
+    if isfile and readfile and isfile(ArquivoLogin) then
+        local conteudo = readfile(ArquivoLogin)
+        local linhas = {}
+        for linha in conteudo:gmatch("[^\n]+") do
+            table.insert(linhas, linha)
+        end
+        if linhas[1] and linhas[2] then
+            usuarioSalvo = linhas[1]
+            senhaSalva = linhas[2]
+            return true, usuarioSalvo, senhaSalva
+        end
+    end
+    return false, "", ""
+end
+
+local function SalvarCredenciais(usuario, senha)
+    if writefile then
+        writefile(ArquivoLogin, usuario .. "\n" .. senha)
+        usuarioSalvo = usuario
+        senhaSalva = senha
+        return true
+    end
+    return false
+end
+
+CarregarCredenciais()
+
+local usuarioDigitado = usuarioSalvo
+local senhaDigitada = senhaSalva
+local Logado = false
+
+-- =============================================
+-- FUNÇÃO DO PAINEL (ESTILO BLOX FRUITS)
+-- =============================================
+
+function CriarPainel()
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local Camera = workspace.CurrentCamera
+    local RunService = game:GetService("RunService")
+    local CoreGui = game:GetService("CoreGui")
+    local UserInputService = game:GetService("UserInputService")
+    
+    -- =============================================
+    -- CORES ROXAS
+    -- =============================================
+    
+    local CorFundoPainel = Color3.fromRGB(16, 13, 22) -- #100D16
+    local CorBordaTop = Color3.fromRGB(117, 27, 214) -- #751BD6
+    local CorBotaoNormal = Color3.fromRGB(49, 16, 96) -- #311060
+    local CorBotaoAimbot = Color3.fromRGB(75, 27, 145) -- #4B1B91
+    local CorBotaoSpeed = Color3.fromRGB(156, 41, 214) -- #9C29D6
+    local CorBotaoSpin = Color3.fromRGB(119, 41, 214) -- #7729D6
+    local CorBotaoESP = Color3.fromRGB(75, 27, 145) -- #4B1B91
+    local CorBotaoFPS = Color3.fromRGB(117, 27, 214) -- #751BD6
+    local CorBotaoSair = Color3.fromRGB(157, 137, 190) -- #9D89BE
+    local CorTexto = Color3.fromRGB(214, 191, 242) -- #D6BFF2
+    local CorSubtexto = Color3.fromRGB(157, 137, 190) -- #9D89BE
+    
+    -- =============================================
+    -- VARIÁVEIS DAS FUNÇÕES
+    -- =============================================
+    
+    local AimbotOn = false
+    local SpeedOn = false
+    local SpinOn = false
+    local ESPOn = false
+    local FPSOn = true
+    
+    local FOVRadius = 360
+    local SpinSpeed = 30
+    local VelocidadeSpeedHack = 39
+    local VelocidadeOriginal = 16
+    
+    -- FPS Counter
+    local FPSCounter = Drawing.new("Text")
+    FPSCounter.Text = "FPS: 60"
+    FPSCounter.Position = Vector2.new(10, 10)
+    FPSCounter.Size = 18
+    FPSCounter.Color = Color3.fromRGB(214, 191, 242) -- Roxo claro
+    FPSCounter.Outline = true
+    FPSCounter.OutlineColor = Color3.fromRGB(16, 13, 22) -- Roxo quase preto
+    FPSCounter.Visible = true
+    FPSCounter.Center = false
+    
+    local frameCount = 0
+    local lastFPSTime = tick()
+    local currentFPS = 60
+    
+    RunService.RenderStepped:Connect(function()
+        frameCount = frameCount + 1
+        local currentTime = tick()
+        local elapsed = currentTime - lastFPSTime
+        if elapsed >= 1 then
+            currentFPS = math.floor(frameCount / elapsed)
+            frameCount = 0
+            lastFPSTime = currentTime
+        end
+        if FPSOn then
+            FPSCounter.Text = "FPS: " .. currentFPS
+            FPSCounter.Visible = true
+        else
+            FPSCounter.Visible = false
+        end
+    end)
+    
+    -- Círculo FOV
+    local FOVCircle = Drawing.new("Circle")
+    FOVCircle.Color = Color3.fromRGB(117, 27, 214) -- Roxo vibrante
+    FOVCircle.Thickness = 2
+    FOVCircle.NumSides = 64
+    FOVCircle.Radius = FOVRadius
+    FOVCircle.Filled = false
+    FOVCircle.Visible = false
+    
+    -- =============================================
+    -- SISTEMA DE AURA AZUL
+    -- =============================================
+    
+    _G.AliadosFluxo = {}
+    _G.InimigosFluxo = {}
+    
+    local function detectarAuraAzul(player)
+        if player == LocalPlayer then return false end
+        local character = player.Character
+        if not character then return false end
+        for _, objeto in ipairs(character:GetChildren()) do
+            if objeto:IsA("Highlight") then
+                local cor = objeto.OutlineColor
+                if cor then
+                    local r, g, b = math.round(cor.R * 255), math.round(cor.G * 255), math.round(cor.B * 255)
+                    if b > 150 and g > 150 and r < 100 then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
+    
+    local function atualizarListas()
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local temAura = detectarAuraAzul(player)
+                _G.AliadosFluxo[player.Name] = temAura
+                _G.InimigosFluxo[player.Name] = not temAura
+            end
+        end
+    end
+    
+    task.spawn(function()
+        while true do
+            pcall(atualizarListas)
+            task.wait(0.3)
+        end
+    end)
+    
+    Players.PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            pcall(atualizarListas)
+        end)
+    end)
+    
+    local function IsAlly(player)
+        if not player or player == LocalPlayer then return false end
+        return _G.AliadosFluxo[player.Name] == true
+    end
+    
+    local function IsEnemy(player)
+        if not player or player == LocalPlayer then return false end
+        return _G.InimigosFluxo[player.Name] == true
+    end
+    
+    -- =============================================
+    -- VERIFICA SE ESTÁ EM PÉ (MELHORADO)
+    -- =============================================
+    
+    local function IsPlayerStanding(player)
+        if not player or not player.Character then return false end
+        local character = player.Character
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        
+        if not humanoid then return false end
+        if humanoid.Health <= 0 then return false end
+        if humanoid:GetState() == Enum.HumanoidStateType.Dead then return false end
+        if humanoid:GetState() == Enum.HumanoidStateType.Ragdoll then return false end
+        if humanoid.PlatformStand == true then return false end
+        
+        local rootPart = character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local orientation = rootPart.Orientation
+            if math.abs(orientation.X) > 45 or math.abs(orientation.Z) > 45 then
+                return false
+            end
+        end
+        
+        local head = character:FindFirstChild("Head")
+        if head and rootPart then
+            local headHeight = head.Position.Y - rootPart.Position.Y
+            if headHeight < 0.5 then
+                return false
+            end
+        end
+        
+        return true
+    end
+    
+    -- =============================================
+    -- FILTRAGEM DE ALVOS (SÓ QUEM ESTÁ EM PÉ)
+    -- =============================================
+    
+    local function ObterInimigoValido()
+        local melhorAlvo = nil
+        local menorDistancia = FOVRadius
+        
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer and IsEnemy(player) and IsPlayerStanding(player) then
+                if player.Character and player.Character:FindFirstChild("Head") then
+                    local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+                    if humanoid and humanoid.Health > 0 then
+                        if humanoid:GetState() ~= Enum.HumanoidStateType.Dead then
+                            if humanoid:GetState() ~= Enum.HumanoidStateType.Ragdoll then
+                                local posTela, naTela = Camera:WorldToViewportPoint(player.Character.Head.Position)
+                                if naTela then
+                                    local centroTela = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+                                    local distanciaPixels = (Vector2.new(posTela.X, posTela.Y) - centroTela).Magnitude
+                                    if distanciaPixels < menorDistancia then
+                                        menorDistancia = distanciaPixels
+                                        melhorAlvo = player
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        return melhorAlvo
+    end
+    
+    -- =============================================
+    -- ESP
+    -- =============================================
+    
+    local ESPObjects = {}
+    local BoxESPEnabled = true
+    local SkeletonESPEnabled = true
+    local NameESPEnabled = true
+    local LineESPEnabled = true
+    
+    local function CreateESP(player)
+        if ESPObjects[player] then return end
+        local drawings = {
+            Box = Drawing.new("Square"),
+            Name = Drawing.new("Text"),
+            Line = Drawing.new("Line"),
+            SkeletonLines = {}
+        }
+        drawings.Box.Thickness = 2
+        drawings.Box.Filled = false
+        drawings.Box.Visible = false
+        drawings.Name.Color = Color3.fromRGB(214, 191, 242) -- Lilás claro
+        drawings.Name.Size = 14
+        drawings.Name.Center = true
+        drawings.Name.Outline = true
+        drawings.Name.Visible = false
+        drawings.Line.Thickness = 1
+        drawings.Line.Visible = false
+        ESPObjects[player] = drawings
+    end
+    
+    local function UpdateSkeleton(player, drawings)
+        if not SkeletonESPEnabled or not ESPOn then
+            for _, line in ipairs(drawings.SkeletonLines) do
+                line.Visible = false
+            end
+            return
+        end
+        local character = player.Character
+        if not character then return end
+        local parts = {"Head", "UpperTorso", "LowerTorso", "LeftUpperArm", "LeftLowerArm", "LeftHand", "RightUpperArm", "RightLowerArm", "RightHand", "LeftUpperLeg", "LeftLowerLeg", "LeftFoot", "RightUpperLeg", "RightLowerLeg", "RightFoot"}
+        local screenPoints = {}
+        local anyVisible = false
+        for _, partName in ipairs(parts) do
+            local part = character:FindFirstChild(partName)
+            if part then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    screenPoints[partName] = Vector2.new(screenPos.X, screenPos.Y)
+                    anyVisible = true
+                end
+            end
+        end
+        if not anyVisible then
+            for _, line in ipairs(drawings.SkeletonLines) do
+                line.Visible = false
+            end
+            return
+        end
+        local connections = {{"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"}, {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"}, {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"}, {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"}, {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}}
+        for i = #drawings.SkeletonLines + 1, #connections do
+            local line = Drawing.new("Line")
+            line.Thickness = 1
+            line.Visible = false
+            table.insert(drawings.SkeletonLines, line)
+        end
+        local skeletonColor = IsAlly(player) and Color3.fromRGB(214, 191, 242) or Color3.fromRGB(156, 41, 214) -- Lilás ou Roxo neon
+        for i, connection in ipairs(connections) do
+            local pointA, pointB = screenPoints[connection[1]], screenPoints[connection[2]]
+            local line = drawings.SkeletonLines[i]
+            line.Color = skeletonColor
+            if pointA and pointB then
+                line.From, line.To = pointA, pointB
+                line.Visible = true
+            else
+                line.Visible = false
+            end
+        end
+        for i = #connections + 1, #drawings.SkeletonLines do
+            drawings.SkeletonLines[i].Visible = false
+        end
+    end
+    
+    local function UpdateESP(player, drawings)
+        if not ESPOn then
+            drawings.Box.Visible = false
+            drawings.Name.Visible = false
+            drawings.Line.Visible = false
+            for _, line in ipairs(drawings.SkeletonLines) do
+                line.Visible = false
+            end
+            return
+        end
+        local character = player.Character
+        if not character or not character:FindFirstChild("HumanoidRootPart") or not character:FindFirstChild("Head") then
+            drawings.Box.Visible = false
+            drawings.Name.Visible = false
+            drawings.Line.Visible = false
+            for _, line in ipairs(drawings.SkeletonLines) do
+                line.Visible = false
+            end
+            return
+        end
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if not humanoid or humanoid.Health <= 0 then
+            drawings.Box.Visible = false
+            drawings.Name.Visible = false
+            drawings.Line.Visible = false
+            for _, line in ipairs(drawings.SkeletonLines) do
+                line.Visible = false
+            end
+            return
+        end
+        local rootPart, head = character.HumanoidRootPart, character.Head
+        local rootPos, headPos = rootPart.Position, head.Position
+        local footPos = rootPos - Vector3.new(0, 3, 0)
+        if character:FindFirstChild("LeftFoot") then
+            footPos = character.LeftFoot.Position
+        elseif character:FindFirstChild("RightFoot") then
+            footPos = character.RightFoot.Position
+        end
+        local headScreen, headOnScreen = Camera:WorldToViewportPoint(headPos)
+        local footScreen, footOnScreen = Camera:WorldToViewportPoint(footPos)
+        local rootScreen, rootOnScreen = Camera:WorldToViewportPoint(rootPos)
+        if not headOnScreen and not footOnScreen and not rootOnScreen then
+            drawings.Box.Visible = false
+            drawings.Name.Visible = false
+            drawings.Line.Visible = false
+            for _, line in ipairs(drawings.SkeletonLines) do
+                line.Visible = false
+            end
+            return
+        end
+        local headPos2D, footPos2D, rootPos2D = Vector2.new(headScreen.X, headScreen.Y), Vector2.new(footScreen.X, footScreen.Y), Vector2.new(rootScreen.X, rootScreen.Y)
+        local boxHeight = math.abs(footPos2D.Y - headPos2D.Y)
+        local boxWidth = boxHeight * 0.35
+        local boxX, boxY = headPos2D.X - boxWidth / 2, headPos2D.Y
+        local isAlly = IsAlly(player)
+        local color = isAlly and Color3.fromRGB(214, 191, 242) or Color3.fromRGB(156, 41, 214) -- Lilás claro ou Roxo neon
+        if BoxESPEnabled then
+            drawings.Box.Color = color
+            drawings.Box.Position = Vector2.new(boxX, boxY)
+            drawings.Box.Size = Vector2.new(boxWidth, boxHeight)
+            drawings.Box.Visible = true
+        else
+            drawings.Box.Visible = false
+        end
+        if NameESPEnabled then
+            drawings.Name.Text = player.Name
+            drawings.Name.Position = Vector2.new(headPos2D.X, boxY - 16)
+            drawings.Name.Visible = true
+        else
+            drawings.Name.Visible = false
+        end
+        if LineESPEnabled then
+            local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+            drawings.Line.Color = color
+            drawings.Line.From = screenCenter
+            drawings.Line.To = Vector2.new(rootPos2D.X, rootPos2D.Y)
+            drawings.Line.Visible = true
+        else
+            drawings.Line.Visible = false
+        end
+        UpdateSkeleton(player, drawings)
+    end
+    
+    RunService.RenderStepped:Connect(function()
+        for player, drawings in pairs(ESPObjects) do
+            UpdateESP(player, drawings)
+        end
+    end)
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            CreateESP(player)
+            player.CharacterAdded:Connect(function()
+                task.wait(0.1)
+            end)
+        end
+    end
+    
+    Players.PlayerAdded:Connect(function(player)
+        CreateESP(player)
+        player.CharacterAdded:Connect(function()
+            task.wait(0.1)
+        end)
+    end)
+    
+    Players.PlayerRemoving:Connect(function(player)
+        if ESPObjects[player] then
+            for _, drawing in pairs(ESPObjects[player]) do
+                if typeof(drawing) == "table" then
+                    for _, line in ipairs(drawing) do
+                        line:Remove()
+                    end
+                else
+                    drawing:Remove()
+                end
+            end
+            ESPObjects[player] = nil
+        end
+    end)
+    
+    -- =============================================
+    -- RENDER LOOP PRINCIPAL (CORRIGIDO)
+    -- =============================================
+    
+    RunService.RenderStepped:Connect(function()
+        FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+        FOVCircle.Radius = FOVRadius
+        FOVCircle.Visible = AimbotOn
+        
+        if AimbotOn then
+            local alvo = ObterInimigoValido()
+            if alvo and alvo.Character and alvo.Character:FindFirstChild("Head") then
+                local humanoid = alvo.Character:FindFirstChildOfClass("Humanoid")
+                if humanoid and humanoid.Health > 0 and 
+                   humanoid:GetState() ~= Enum.HumanoidStateType.Dead and 
+                   humanoid:GetState() ~= Enum.HumanoidStateType.Ragdoll and 
+                   IsPlayerStanding(alvo) then
+                    Camera.CFrame = CFrame.new(Camera.CFrame.Position, alvo.Character.Head.Position)
+                end
+            end
+        end
+        
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if SpeedOn then
+                humanoid.WalkSpeed = VelocidadeSpeedHack
+            else
+                humanoid.WalkSpeed = VelocidadeOriginal
+            end
+        end
+        
+        if SpinOn and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local rootPart = LocalPlayer.Character.HumanoidRootPart
+            rootPart.CFrame = rootPart.CFrame * CFrame.Angles(0, math.rad(SpinSpeed), 0)
+            
+            local humanoid = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.AutoRotate = false
+            end
+        elseif LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+            LocalPlayer.Character:FindFirstChildOfClass("Humanoid").AutoRotate = true
+        end
+    end)
+    
+    LocalPlayer.CharacterAdded:Connect(function(character)
+        task.wait(0.5)
+        if SpeedOn then
+            if character:FindFirstChildOfClass("Humanoid") then
+                character:FindFirstChildOfClass("Humanoid").WalkSpeed = VelocidadeSpeedHack
+            end
+        end
+    end)
+    
+    -- =============================================
+    -- CRIAÇÃO DO PAINEL (ESTILO BLOX FRUITS - ROXO)
+    -- =============================================
+    
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "ControlButtonGUI"
+    ScreenGui.Parent = CoreGui
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    
+    -- ÍCONE FLUTUANTE
+    local ToggleButton = Instance.new("ImageButton")
+    ToggleButton.Size = UDim2.new(0, 50, 0, 50)
+    ToggleButton.Position = UDim2.new(0.15, 0, 0.15, 0)
+    ToggleButton.BackgroundColor3 = CorFundoPainel
+    ToggleButton.BorderSizePixel = 0
+    ToggleButton.Image = "rbxassetid://91226771137515"
+    ToggleButton.Parent = ScreenGui
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(1, 0)
+    Corner.Parent = ToggleButton
+    
+    local Sombra = Instance.new("ImageLabel")
+    Sombra.Size = UDim2.new(1.2, 0, 1.2, 0)
+    Sombra.Position = UDim2.new(-0.1, 0, -0.1, 0)
+    Sombra.BackgroundTransparency = 1
+    Sombra.Image = "rbxassetid://13160466635"
+    Sombra.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    Sombra.ImageTransparency = 0.6
+    Sombra.Parent = ToggleButton
+    
+    -- =============================================
+    -- PAINEL FLUTUANTE (MOVÍVEL - ROXO)
+    -- =============================================
+    
+    local Painel = Instance.new("Frame")
+    Painel.Size = UDim2.new(0, 280, 0, 380)
+    Painel.Position = UDim2.new(0.15, 0, 0.3, 0)
+    Painel.BackgroundColor3 = CorFundoPainel
+    Painel.BorderSizePixel = 0
+    Painel.Visible = false
+    Painel.Parent = ScreenGui
+    
+    local CornerPainel = Instance.new("UICorner")
+    CornerPainel.CornerRadius = UDim.new(0, 12)
+    CornerPainel.Parent = Painel
+    
+    local BordaTop = Instance.new("Frame")
+    BordaTop.Size = UDim2.new(1, 0, 0, 3)
+    BordaTop.Position = UDim2.new(0, 0, 0, 0)
+    BordaTop.BackgroundColor3 = CorBordaTop
+    BordaTop.BorderSizePixel = 0
+    BordaTop.Parent = Painel
+    
+    local Titulo = Instance.new("TextLabel")
+    Titulo.Size = UDim2.new(1, 0, 0, 35)
+    Titulo.Position = UDim2.new(0, 0, 0, 5)
+    Titulo.BackgroundTransparency = 1
+    Titulo.Text = "S7DANX HUB"
+    Titulo.TextColor3 = CorTexto
+    Titulo.TextSize = 18
+    Titulo.Font = Enum.Font.GothamBold
+    Titulo.Parent = Painel
+    
+    local Sub = Instance.new("TextLabel")
+    Sub.Size = UDim2.new(1, 0, 0, 16)
+    Sub.Position = UDim2.new(0, 0, 0, 40)
+    Sub.BackgroundTransparency = 1
+    Sub.Text = "FLUXO PVP 😈"
+    Sub.TextColor3 = CorSubtexto
+    Sub.TextSize = 10
+    Sub.Font = Enum.Font.Gotham
+    Sub.Parent = Painel
+    
+    local Linha = Instance.new("Frame")
+    Linha.Size = UDim2.new(1, -20, 0, 1)
+    Linha.Position = UDim2.new(0, 10, 0, 58)
+    Linha.BackgroundColor3 = CorBordaTop
+    Linha.BorderSizePixel = 0
+    Linha.Parent = Painel
+    
+    -- =============================================
+    -- ARRASTO DO PAINEL
+    -- =============================================
+    
+    local painelDragging = false
+    local painelDragStart = nil
+    local painelStartPos = nil
+    
+    local function iniciarArrastoPainel(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            painelDragging = true
+            painelDragStart = input.Position
+            painelStartPos = Painel.Position
+        end
+    end
+    
+    local function atualizarArrastoPainel(input)
+        if painelDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - painelDragStart
+            Painel.Position = UDim2.new(
+                painelStartPos.X.Scale,
+                painelStartPos.X.Offset + delta.X,
+                painelStartPos.Y.Scale,
+                painelStartPos.Y.Offset + delta.Y
+            )
+        end
+    end
+    
+    local function pararArrastoPainel(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            painelDragging = false
+        end
+    end
+    
+    Titulo.InputBegan:Connect(iniciarArrastoPainel)
+    Sub.InputBegan:Connect(iniciarArrastoPainel)
+    BordaTop.InputBegan:Connect(iniciarArrastoPainel)
+    
+    UserInputService.InputChanged:Connect(atualizarArrastoPainel)
+    UserInputService.InputEnded:Connect(pararArrastoPainel)
+    
+    -- =============================================
+    -- BOTÕES
+    -- =============================================
+    
+    local function CriarBotao(texto, yPos, cor)
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -20, 0, 38)
+        btn.Position = UDim2.new(0, 10, 0, yPos)
+        btn.BackgroundColor3 = cor or CorBotaoNormal
+        btn.BorderSizePixel = 0
+        btn.Text = texto
+        btn.TextColor3 = CorTexto
+        btn.TextSize = 14
+        btn.Font = Enum.Font.GothamBold
+        btn.Parent = Painel
+        
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 8)
+        corner.Parent = btn
+        
+        return btn
+    end
+    
+    local y = 68
+    
+    -- Botão Aimbot
+    local btnAimbot = CriarBotao("🎯 ATIVAR AIMBOT + FOV", y, CorBotaoNormal)
+    btnAimbot.MouseButton1Click:Connect(function()
+        AimbotOn = not AimbotOn
+        btnAimbot.BackgroundColor3 = AimbotOn and CorBotaoAimbot or CorBotaoNormal
+        btnAimbot.Text = (AimbotOn and "✅ " or "❌ ") .. "AIMBOT + FOV"
+    end)
+    y = y + 43
+    
+    -- Botão Speed
+    local btnSpeed = CriarBotao("⚡ ATIVAR SPEED HACK", y, CorBotaoNormal)
+    btnSpeed.MouseButton1Click:Connect(function()
+        SpeedOn = not SpeedOn
+        btnSpeed.BackgroundColor3 = SpeedOn and CorBotaoSpeed or CorBotaoNormal
+        btnSpeed.Text = (SpeedOn and "✅ " or "❌ ") .. "SPEED HACK (39)"
+        if SpeedOn then
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = VelocidadeSpeedHack
+            end
+        else
+            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid") then
+                LocalPlayer.Character:FindFirstChildOfClass("Humanoid").WalkSpeed = VelocidadeOriginal
+            end
+        end
+    end)
+    y = y + 43
+    
+    -- Botão Spin
+    local btnSpin = CriarBotao("🔄 ATIVAR SPIN BOT", y, CorBotaoNormal)
+    btnSpin.MouseButton1Click:Connect(function()
+        SpinOn = not SpinOn
+        btnSpin.BackgroundColor3 = SpinOn and CorBotaoSpin or CorBotaoNormal
+        btnSpin.Text = (SpinOn and "✅ " or "❌ ") .. "SPIN BOT (360)"
+    end)
+    y = y + 43
+    
+    -- Botão ESP
+    local btnESP = CriarBotao("👁️ ATIVAR ESP", y, CorBotaoNormal)
+    btnESP.MouseButton1Click:Connect(function()
+        ESPOn = not ESPOn
+        btnESP.BackgroundColor3 = ESPOn and CorBotaoESP or CorBotaoNormal
+        btnESP.Text = (ESPOn and "✅ " or "❌ ") .. "ESP"
+    end)
+    y = y + 43
+    
+    -- Botão FPS
+    local btnFPS = CriarBotao("📊 ATIVAR FPS", y, CorBotaoFPS)
+    btnFPS.Text = "✅ FPS"
+    btnFPS.MouseButton1Click:Connect(function()
+        FPSOn = not FPSOn
+        btnFPS.BackgroundColor3 = FPSOn and CorBotaoFPS or CorBotaoNormal
+        btnFPS.Text = (FPSOn and "✅ " or "❌ ") .. "FPS"
+    end)
+    y = y + 43
+    
+    -- Botão Sair
+    local btnSair = CriarBotao("🚪 SAIR", y, CorBotaoSair)
+    btnSair.MouseButton1Click:Connect(function()
+        ScreenGui:Destroy()
+        task.wait(0.5)
+        CriarLogin()
+    end)
+    
+    -- =============================================
+    -- ABRIR/FECHAR PAINEL
+    -- =============================================
+    
+    local painelAberto = false
+    
+    ToggleButton.MouseButton1Click:Connect(function()
+        painelAberto = not painelAberto
+        Painel.Visible = painelAberto
+    end)
+    
+    -- Arrasto do botão flutuante
+    local dragging = false
+    local dragInput, dragStart, startPos
+    
+    local function update(input)
+        local delta = input.Position - dragStart
+        ToggleButton.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
+    
+    ToggleButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = ToggleButton.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    ToggleButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input == dragInput then
+            update(input)
+        end
+    end)
+    
+    print("✅ S7DANX HUB carregado!")
+end
+
+-- =============================================
+-- FUNÇÃO DA TELA DE LOGIN
+-- =============================================
+
+function CriarLogin()
+    local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+    
+    local LoginWindow = Fluent:CreateWindow({
+        Title = "🔐 S7DANX LOGIN",
+        SubTitle = "Faça login para continuar",
+        TabWidth = 180,
+        Size = UDim2.fromOffset(480, 370),
+        Acrylic = false,
+        Theme = "Dark",
+        MinimizeKey = nil
+    })
+    
+    local LoginTab = LoginWindow:AddTab({Title = "🔐 Login", Icon = ""})
+    
+    LoginTab:AddSection("🔒 Autenticação")
+    
+    LoginTab:AddParagraph({
+        Title = "🌟 Bem-vindo ao S7DANX HUB",
+        Content = "Digite suas credenciais para acessar"
+    })
+    
+    if usuarioSalvo ~= "" then
+        LoginTab:AddParagraph({
+            Title = "💾 Login Salvo",
+            Content = "Usuário: " .. usuarioSalvo
+        })
+    end
+    
+    LoginTab:AddInput("UserInput", {
+        Title = "👤 Usuário",
+        Default = usuarioSalvo,
+        Placeholder = "Digite o usuário",
+        Numeric = false,
+        Finished = false,
+        Callback = function(Value)
+            usuarioDigitado = Value
+        end
+    })
+    
+    LoginTab:AddInput("PassInput", {
+        Title = "🔑 Senha",
+        Default = "",
+        Placeholder = "Digite a senha",
+        Numeric = false,
+        Finished = false,
+        Callback = function(Value)
+            senhaDigitada = Value
+        end
+    })
+    
+    LoginTab:AddButton({
+        Title = "🚀 ENTRAR",
+        Description = "Clique para acessar o hub",
+        Callback = function()
+            local user = usuarioDigitado
+            local pass = senhaDigitada
+            
+            if user == "" and usuarioSalvo ~= "" then
+                user = usuarioSalvo
+                pass = senhaSalva
+            end
+            
+            if user == "S7DANX" and pass == "10k" then
+                SalvarCredenciais(user, pass)
+                LoginWindow:Destroy()
+                task.wait(0.3)
+                CriarPainel()
+                
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "✅ S7DANX",
+                    Text = "Login realizado! Bem-vindo!",
+                    Duration = 3
+                })
+            else
+                game:GetService("StarterGui"):SetCore("SendNotification", {
+                    Title = "❌ Erro",
+                    Text = "Usuário ou senha incorretos!",
+                    Duration = 3
+                })
+                usuarioDigitado = ""
+                senhaDigitada = ""
+            end
+        end
+    })
+    
+    LoginTab:AddParagraph({
+        Title = "⚠️ Aviso",
+        Content = "Apenas usuários autorizados"
+    })
+end
+
+-- =============================================
+-- INICIALIZAÇÃO
+-- =============================================
+
+task.wait(1)
+
+if usuarioSalvo ~= "" and senhaSalva ~= "" then
+    Logado = true
+    print("✅ Login automático realizado!")
+    CriarPainel()
+else
+    CriarLogin()
+    print("🔐 S7DANX HUB - Faça login para continuar!")
+end
